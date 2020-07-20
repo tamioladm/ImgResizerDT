@@ -18,8 +18,6 @@ namespace ImgResizer
 {
     public static class ImgResizer
     {
-        const string StorageAccountName = "imgresizerstorageacc";
-        const string StorageAccountKey = "iS6UgPy5PFPLLsuQMuviRgoRFhOtZjZkrAVfnljeZYR2vc5HggLXJysyl+TOjNvA+pi48tF1a2WATzKfU60VBA==";
         const string StorageAccountConnectionString = "DefaultEndpointsProtocol=https;AccountName=imgresizerstorageacc;AccountKey=iS6UgPy5PFPLLsuQMuviRgoRFhOtZjZkrAVfnljeZYR2vc5HggLXJysyl+TOjNvA+pi48tF1a2WATzKfU60VBA==;EndpointSuffix=core.windows.net";
 
         [FunctionName("ImgResizerHTTPTrigger")]
