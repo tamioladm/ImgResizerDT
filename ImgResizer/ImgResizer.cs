@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Documents;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.WebJobs;
@@ -37,7 +38,7 @@ namespace ImgResizer
             int imgHeight = int.Parse(height);
 
             // To zwraca IActionResult w przypadku OkObjectResult.
-            string returnMessage;
+            string returnMessage = "";
 
             // Łączenie się ze Azure Storage Account i tworzenie klienta.
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageAccountConnectionString);
@@ -61,8 +62,9 @@ namespace ImgResizer
             CloudBlobContainer outputContainer = client.GetContainerReference("images-thumb");
             outputContainer.CreateIfNotExists();
             CloudBlobDirectory outputDirectory = outputContainer.GetDirectoryReference($"{width}/{height}");
-            if (center == "yes") { outputDirectory = outputContainer.GetDirectoryReference($"center/{width}/{height}"); }
+            if (center == "yes") { outputDirectory = outputContainer.GetDirectoryReference($"{width}/{height}/center"); }
             CloudBlockBlob outputBlob = outputDirectory.GetBlockBlobReference($"thumb-{filename}");
+            if (watermark == "logo") { outputBlob = outputDirectory.GetBlockBlobReference($"watermark-thumb-{filename}"); }
             Stream outputStream = new MemoryStream();
 
             // Jeżeli obrazek do przeskalowania nie istnieje.
@@ -87,61 +89,88 @@ namespace ImgResizer
                     // Jeżeli ma być centrowany.
                     if (center == "yes")
                     {
-                        imageResult.Mutate(
-                            x => x.Resize(new ResizeOptions
+                        try
+                        {
+                            imageResult.Mutate(
+                                x => x.Resize(new ResizeOptions
+                                    {
+                                        Mode = ResizeMode.Max,
+                                        Size = new Size(imgWidth, imgHeight)
+                                    }
+                                )
+                            );
+
+                            var imageContainer = new Image<Rgba32>(imgWidth, imgHeight, Color.FromRgb(0, 0, 0));
+                            // Jeżeli brakuje mu pikseli w poziomie.
+                            if (imageResult.Width < imageContainer.Width)
                             {
-                                Mode = ResizeMode.Max,
-                                Size = new Size(imgWidth, imgHeight)
+                                imageContainer.Mutate(x => x.DrawImage(imageResult, new Point((imageContainer.Width / 2) - (imageResult.Width / 2), 0), 1.0f));
                             }
-                            )
-                        );
+                            // Jeżeli brakuje mu pikseli w pionie.
+                            if (imageResult.Height < imageContainer.Height)
+                            {
+                                imageContainer.Mutate(x => x.DrawImage(imageResult, new Point(0, (imageContainer.Height / 2) - (imageResult.Height / 2)), 1.0f));
+                            }
 
-                        var imageContainer = new Image<Rgba32>(imgWidth, imgHeight, Color.FromRgb(0, 0, 0));
-                        // Jeżeli brakuje mu pikseli w poziomie.
-                        if (imageResult.Width < imageContainer.Width)
-                        {
-                            imageContainer.Mutate(x => x.DrawImage(imageResult, new Point((imageContainer.Width / 2) - (imageResult.Width / 2), 0), 1.0f));
+                            imageResult = imageContainer;
+
+                            returnMessage = $"Image resized and centered successfully. Dimensions: {width}x{height}";
                         }
-                        // Jeżeli brakuje mu pikseli w pionie.
-                        if (imageResult.Height < imageContainer.Height)
+                        catch (Exception e)
                         {
-                            imageContainer.Mutate(x => x.DrawImage(imageResult, new Point(0, (imageContainer.Height / 2) - (imageResult.Height / 2)), 1.0f));
+                            Console.WriteLine("{0} Exception caught while centering or resizing image.", e);
                         }
-
-                        imageResult = imageContainer;
-
-                        returnMessage = $"Image resized and centered successfully. Dimensions: {width}x{height}";
                     }
                     // Jeżeli nie ma być centrowany.
                     else
                     {
-                        imageResult.Mutate(
-                            i => i.Resize(imgWidth, imgHeight)
-                        );
-
-                        returnMessage = $"Image resized successfully. Dimensions: {width}x{height}";
+                        try
+                        {
+                            imageResult.Mutate(
+                                i => i.Resize(imgWidth, imgHeight)
+                            );
+                            returnMessage = $"Image resized successfully. Dimensions: {width}x{height}";
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("{0} Exception caught while resizing image.", e);
+                        }
+                        
                     }
                     // Jeżeli ma mieć watermark.
                     if (watermark == "logo")
                     {
                         using (var watermarkImage = Image.Load(watermarkStream))
                         {
-                            watermarkImage.Mutate(
-                                x => x.Resize(new ResizeOptions
-                                {
-                                    Mode = ResizeMode.Max,
-                                    Size = new Size(imgWidth / 3, imgHeight)
-                                }
-                                )
-                            );
-
-                            imageResult.Mutate(x => x.DrawImage(watermarkImage, new Point(10, 10), 0.5f));
+                            try
+                            {
+                                watermarkImage.Mutate(
+                                    x => x.Resize(new ResizeOptions
+                                        {
+                                            Mode = ResizeMode.Max,
+                                            Size = new Size(imgWidth / 3, imgHeight)
+                                        }
+                                    )
+                                );
+                                imageResult.Mutate(x => x.DrawImage(watermarkImage, new Point(10, 10), 0.5f));
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("{0} Exception caught while applying watermark.", e);
+                            }
                         }
                     }
                     // Zapisujemy wynik do streama, stream do bloba.
-                    imageResult.Save(outputStream, new JpegEncoder());
-                    outputStream.Seek(0, SeekOrigin.Begin);
-                    await outputBlob.UploadFromStreamAsync(outputStream);
+                    try
+                    {
+                        imageResult.Save(outputStream, new JpegEncoder());
+                        outputStream.Seek(0, SeekOrigin.Begin);
+                        await outputBlob.UploadFromStreamAsync(outputStream);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("{0} Exception caught while saving image.", e);
+                    }
                 }
             }
             return new OkObjectResult($"Result:\n" +
@@ -159,7 +188,7 @@ namespace ImgResizer
             IFormFile inputStream = req.Form.Files.GetFile(req.Form.Files[0].Name);
             string putFilename = req.Form.Files[0].FileName;
 
-            string returnMessage;
+            string returnMessage = "";
 
             CloudStorageAccount storageAccount = CloudStorageAccount.Parse(StorageAccountConnectionString);
             CloudBlobClient client = storageAccount.CreateCloudBlobClient();
@@ -180,10 +209,17 @@ namespace ImgResizer
                 returnMessage = "Image uploaded successfully.";
                 using (var image = Image.Load(inputStream.OpenReadStream()))
                 {
-
-                    image.Save(outputStream, new JpegEncoder());
-                    outputStream.Seek(0, SeekOrigin.Begin);
-                    await outputBlob.UploadFromStreamAsync(outputStream);
+                    try
+                    {
+                        image.Save(outputStream, new JpegEncoder());
+                        outputStream.Seek(0, SeekOrigin.Begin);
+                        await outputBlob.UploadFromStreamAsync(outputStream);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("{0} Exception caught while uploading image.", e);
+                    }
+                    
                 }
             }
 
@@ -215,18 +251,27 @@ namespace ImgResizer
             }
             else
             {
-                foreach (ICloudBlob cloudBlob in listCloudBlob)
+                try
                 {
-
-                    if (cloudBlob.Uri.ToString().EndsWith($"thumb-{filename}"))
+                    foreach (ICloudBlob cloudBlob in listCloudBlob)
                     {
-                        Console.WriteLine("Deleted: " + cloudBlob.Uri);
-                        await cloudBlob.DeleteIfExistsAsync();
-                    }
 
+                        if (cloudBlob.Uri.ToString().EndsWith($"thumb-{filename}"))
+                        {
+                            Console.WriteLine("Deleted: " + cloudBlob.Uri);
+                            await cloudBlob.DeleteIfExistsAsync();
+                        }
+
+                    }
+                    Console.WriteLine("Deleted: " + inputBlob.Uri);
+                    await inputBlob.DeleteIfExistsAsync();
                 }
-                Console.WriteLine("Deleted: " + inputBlob.Uri);
-                await inputBlob.DeleteIfExistsAsync();
+                catch (Exception e)
+                {
+                    Console.WriteLine("{0} Exception caught while deleting blobs.", e);
+                }
+
+
             }
 
 
