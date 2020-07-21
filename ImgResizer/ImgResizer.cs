@@ -35,13 +35,14 @@ namespace ImgResizer
             string center = req.Query["c"]; // Czy obrazek ma być wycentrowany, przyjmuje 'yes'.
             string watermark = req.Query["wm"]; // Czy obrazek ma mieć watermark, przyjmuje 'logo'.
 
+            // Wywala 500 Internal Server Error zanim w ogóle to sprawdzi.
             //if (width != int.Parse(width).ToString() || height != int.Parse(height).ToString() || int.Parse(width) <= 0 || int.Parse(height) <= 0)
             //{
             //    return new BadRequestObjectResult("Invalid non-optional parameters.");
             //}
 
-            int imgWidth = int.Parse(width);
-            int imgHeight = int.Parse(height);
+            int imgWidth = (int.Parse(width) > 5000 ? 5000 : int.Parse(width));
+            int imgHeight = (int.Parse(height) > 5000 ? 5000 : int.Parse(height));
 
 
             // To zwraca IActionResult w przypadku OkObjectResult.
@@ -68,8 +69,8 @@ namespace ImgResizer
             // Pobieranie bloba wyjściowego, do niego zapisujemy gotowy obrazek.
             CloudBlobContainer outputContainer = client.GetContainerReference("images-thumb");
             outputContainer.CreateIfNotExists();
-            CloudBlobDirectory outputDirectory = outputContainer.GetDirectoryReference($"{width}/{height}");
-            if (center == "yes") { outputDirectory = outputContainer.GetDirectoryReference($"{width}/{height}/center"); }
+            CloudBlobDirectory outputDirectory = outputContainer.GetDirectoryReference($"{imgWidth}/{imgHeight}");
+            if (center == "yes") { outputDirectory = outputContainer.GetDirectoryReference($"{imgWidth}/{imgHeight}/center"); }
             CloudBlockBlob outputBlob = outputDirectory.GetBlockBlobReference($"thumb-{filename}");
             if (watermark == "logo") { outputBlob = outputDirectory.GetBlockBlobReference($"watermark-thumb-{filename}"); }
             Stream outputStream = new MemoryStream();
@@ -122,7 +123,7 @@ namespace ImgResizer
 
                             imageResult = imageContainer;
 
-                            returnMessage = $"Image resized and centered successfully. Dimensions: {width}x{height}";
+                            returnMessage = $"Image resized and centered successfully. Dimensions: {imgWidth}x{imgHeight}";
                         }
                         catch (Exception e)
                         {
@@ -137,7 +138,7 @@ namespace ImgResizer
                             imageResult.Mutate(
                                 i => i.Resize(imgWidth, imgHeight)
                             );
-                            returnMessage = $"Image resized successfully. Dimensions: {width}x{height}";
+                            returnMessage = $"Image resized successfully. Dimensions: {imgWidth}x{imgHeight}";
                         }
                         catch (Exception e)
                         {
