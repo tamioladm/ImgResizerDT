@@ -34,14 +34,15 @@ namespace ImgResizer
             string height = req.Query["h"]; // Wysokość obrazka.
             string center = req.Query["c"]; // Czy obrazek ma być wycentrowany, przyjmuje 'yes'.
             string watermark = req.Query["wm"]; // Czy obrazek ma mieć watermark, przyjmuje 'logo'.
+
+            //if (width != int.Parse(width).ToString() || height != int.Parse(height).ToString() || int.Parse(width) <= 0 || int.Parse(height) <= 0)
+            //{
+            //    return new BadRequestObjectResult("Invalid non-optional parameters.");
+            //}
+
             int imgWidth = int.Parse(width);
             int imgHeight = int.Parse(height);
 
-            if (imgWidth != int.Parse(width) || imgHeight != int.Parse(height) || imgWidth <= 0 || imgHeight <= 0)
-            {
-                Console.WriteLine("Invalid non-optional parameters.");
-                return new BadRequestResult();
-            }
 
             // To zwraca IActionResult w przypadku OkObjectResult.
             string returnMessage = "";
