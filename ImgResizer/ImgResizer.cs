@@ -37,6 +37,12 @@ namespace ImgResizer
             int imgWidth = int.Parse(width);
             int imgHeight = int.Parse(height);
 
+            if (imgWidth != int.Parse(width) || imgHeight != int.Parse(height) || imgWidth <= 0 || imgHeight <= 0)
+            {
+                Console.WriteLine("Invalid non-optional parameters.");
+                return new BadRequestResult();
+            }
+
             // To zwraca IActionResult w przypadku OkObjectResult.
             string returnMessage = "";
 
@@ -70,15 +76,16 @@ namespace ImgResizer
             // Jeżeli obrazek do przeskalowania nie istnieje.
             if (!inputBlob.Exists())
             {
-                return new OkObjectResult($"Result:\n" +
-                $"The image doesn't exist.\n" +
-                $"Image link:\n" +
-                $"N/A");
+                return new BadRequestObjectResult("Result:\n" +
+                "The image doesn't exist.");
             }
             // Jeżeli obrazek o podanych wymiarach już istnieje.
             else if (outputBlob.Exists())
             {
-                returnMessage = "The image already exists in these dimensions.";
+                return new OkObjectResult($"Result:\n" +
+                $"The image already exists in the given dimensions.\n" +
+                $"Image link:\n" +
+                $"{outputBlob.Uri}");
             }
             // Obrazek do przeskalowania istnieje, ale nie istnieje jego cache.
             else
@@ -201,9 +208,8 @@ namespace ImgResizer
 
             if (outputBlob.Exists())
             {
-                returnMessage = "The image already exists.";
+                return new BadRequestObjectResult("An image with this name already exists. Sorry, we currently do not support overwriting.");
             }
-
             else
             {
                 returnMessage = "Image uploaded successfully.";
@@ -242,12 +248,13 @@ namespace ImgResizer
             CloudBlobDirectory directory = container.GetDirectoryReference("");
             CloudBlockBlob inputBlob = directory.GetBlockBlobReference($"{filename}");
 
+            // Boję się usunąć jakikolwiek argument stąd, skopiowane z internetu działa bez zarzutu więc zostaje.
             BlobResultSegment resultSegment = await containerThumb.ListBlobsSegmentedAsync("", true, BlobListingDetails.All, 10, null, null, null);
             var listCloudBlob = resultSegment.Results.Select(x => x as ICloudBlob);
 
             if (!inputBlob.Exists())
             {
-                return new OkObjectResult($"File {filename} didn't exist in the first place.");
+                return new BadRequestObjectResult($"File {filename} didn't exist in the first place.");
             }
             else
             {
