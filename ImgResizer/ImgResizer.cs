@@ -29,17 +29,18 @@ namespace ImgResizer
                 string filename,
                 ILogger log)
         {
+
+            // Wywala 500 Internal Server Error zanim w ogóle to sprawdzi.
+            //if (req.Query["w"] != int.Parse(req.Query["w"]).ToString() || req.Query["h"] != int.Parse(req.Query["h"]).ToString() || int.Parse(req.Query["w"]) <= 0 || int.Parse(req.Query["h"]) <= 0)
+            //{
+            //    return new BadRequestObjectResult("Invalid non-optional parameters.");
+            //}
+
             // Pobieramy parametry z GETa do zmiennych.
             string width = req.Query["w"]; // Szerokość obrazka.
             string height = req.Query["h"]; // Wysokość obrazka.
             string center = req.Query["c"]; // Czy obrazek ma być wycentrowany, przyjmuje 'yes'.
             string watermark = req.Query["wm"]; // Czy obrazek ma mieć watermark, przyjmuje 'logo'.
-
-            // Wywala 500 Internal Server Error zanim w ogóle to sprawdzi.
-            //if (width != int.Parse(width).ToString() || height != int.Parse(height).ToString() || int.Parse(width) <= 0 || int.Parse(height) <= 0)
-            //{
-            //    return new BadRequestObjectResult("Invalid non-optional parameters.");
-            //}
 
             int imgWidth = (int.Parse(width) > 5000 ? 5000 : int.Parse(width));
             int imgHeight = (int.Parse(height) > 5000 ? 5000 : int.Parse(height));
@@ -59,7 +60,7 @@ namespace ImgResizer
             //Stream inputStream = new MemoryStream();
             //await inputBlob.DownloadToStreamAsync(inputStream);
 
-            //// Alternatywne pobieranie watermarka. Image.Load(watermarkStream) wywala to samo, co w przypadku inputStream.
+            // Alternatywne pobieranie watermarka. Image.Load(watermarkStream) wywala to samo, co w przypadku inputStream.
             //CloudBlobContainer miscContainer = client.GetContainerReference("images-misc");
             //CloudBlobDirectory miscDirectory = miscContainer.GetDirectoryReference("");
             //CloudBlockBlob watermarkBlob = miscDirectory.GetBlockBlobReference("watermark.png");
